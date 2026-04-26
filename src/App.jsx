@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import {
-  BarChart, Bar, PieChart, Pie, Cell,
+  BarChart, Bar, PieChart, Pie, Cell, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
   ScatterChart, Scatter, ZAxis
@@ -170,6 +170,19 @@ export default function App() {
     Presencia: 70,
   })
 
+  // --- Abastecimiento (Compras) ---
+  const [compras, setCompras] = useState([
+    { id: 1, fecha: '2026-01-15', proveedor: 'Café La Reserva', insumo: 'Café en Grano', cantidad: 10, unidad: 'kg', precioUnitario: 18000, tipoDoc: 'Factura', nDoc: '12453' },
+    { id: 2, fecha: '2026-02-12', proveedor: 'Café La Reserva', insumo: 'Café en Grano', cantidad: 10, unidad: 'kg', precioUnitario: 19500, tipoDoc: 'Factura', nDoc: '12891' },
+    { id: 3, fecha: '2026-03-14', proveedor: 'Café La Reserva', insumo: 'Café en Grano', cantidad: 12, unidad: 'kg', precioUnitario: 20200, tipoDoc: 'Factura', nDoc: '13247' },
+    { id: 4, fecha: '2026-01-20', proveedor: 'Lácteos del Sur', insumo: 'Leche Entera', cantidad: 80, unidad: 'L', precioUnitario: 1200, tipoDoc: 'Factura', nDoc: '8821' },
+    { id: 5, fecha: '2026-02-22', proveedor: 'Lácteos del Sur', insumo: 'Leche Entera', cantidad: 80, unidad: 'L', precioUnitario: 1280, tipoDoc: 'Factura', nDoc: '8967' },
+    { id: 6, fecha: '2026-03-18', proveedor: 'Lácteos del Sur', insumo: 'Leche Entera', cantidad: 80, unidad: 'L', precioUnitario: 1350, tipoDoc: 'Factura', nDoc: '9102' },
+    { id: 7, fecha: '2026-03-05', proveedor: 'Panadería Artesanal', insumo: 'Harina', cantidad: 50, unidad: 'kg', precioUnitario: 950, tipoDoc: 'Boleta', nDoc: '4521' },
+    { id: 8, fecha: '2026-03-25', proveedor: 'Empaques Pro', insumo: 'Vasos 12oz', cantidad: 2000, unidad: 'un', precioUnitario: 85, tipoDoc: 'Boleta', nDoc: '7733' },
+  ])
+  const [ratioBenchmark, setRatioBenchmark] = useState(30) // % objetivo compras/ventas
+
   // --- Control Legal ---
   const [legalItems, setLegalItems] = useState([
     { id: 1, item: 'Patente Comercial Municipal', vigente: true, vence: '2026-12-31' },
@@ -239,6 +252,51 @@ export default function App() {
     ? (legalItems.filter(l => l.vigente).length / legalItems.length) * 100
     : 0
 
+  // --- Cálculos Abastecimiento ---
+  const totalCompras = useMemo(() =>
+    compras.reduce((s, c) => s + Number(c.cantidad || 0) * Number(c.precioUnitario || 0), 0),
+  [compras])
+
+  const ratioCompraVenta = totalIngresos > 0 ? (totalCompras / totalIngresos) * 100 : 0
+
+  const insumosUnicos = useMemo(() => [...new Set(compras.map(c => c.insumo))], [compras])
+  const proveedoresUnicos = useMemo(() => [...new Set(compras.map(c => c.proveedor))], [compras])
+
+  // Evolución de precio unitario por insumo (por fecha)
+  const fechasOrdenadas = useMemo(() => [...new Set(compras.map(c => c.fecha))].sort(), [compras])
+  const dataEvolucionPrecios = fechasOrdenadas.map(fecha => {
+    const punto = { fecha }
+    insumosUnicos.forEach(insumo => {
+      const compra = compras.find(c => c.fecha === fecha && c.insumo === insumo)
+      if (compra) punto[insumo] = compra.precioUnitario
+    })
+    return punto
+  })
+
+  // Variación de precios por insumo
+  const variacionInsumos = insumosUnicos.map(insumo => {
+    const comprasInsumo = compras
+      .filter(c => c.insumo === insumo)
+      .sort((a, b) => a.fecha.localeCompare(b.fecha))
+    if (comprasInsumo.length < 2) {
+      return { insumo, inicial: comprasInsumo[0]?.precioUnitario || 0, final: comprasInsumo[0]?.precioUnitario || 0, variacionPct: 0, compras: comprasInsumo.length }
+    }
+    const inicial = comprasInsumo[0].precioUnitario
+    const final = comprasInsumo[comprasInsumo.length - 1].precioUnitario
+    const variacionPct = inicial > 0 ? ((final - inicial) / inicial) * 100 : 0
+    return { insumo, inicial, final, variacionPct, compras: comprasInsumo.length }
+  })
+
+  const variacionPromedio = variacionInsumos.length > 0
+    ? variacionInsumos.reduce((s, v) => s + v.variacionPct, 0) / variacionInsumos.length
+    : 0
+
+  // Total por proveedor
+  const gastoPorProveedor = proveedoresUnicos.map(proveedor => ({
+    proveedor,
+    monto: compras.filter(c => c.proveedor === proveedor).reduce((s, c) => s + c.cantidad * c.precioUnitario, 0),
+  })).sort((a, b) => b.monto - a.monto)
+
   // CRUD helpers
   const addItem = (setter, list, template) => {
     const newId = list.length > 0 ? Math.max(...list.map(i => i.id)) + 1 : 1
@@ -259,6 +317,7 @@ export default function App() {
     { id: 'escenarios', label: 'Escenarios', icon: '🎯' },
     { id: 'balance', label: 'Balance', icon: '📑' },
     { id: 'cartera', label: 'Cartera Productos', icon: '☕' },
+    { id: 'abastecimiento', label: 'Abastecimiento', icon: '📦' },
     { id: 'marketing', label: 'Marketing Mix', icon: '📣' },
     { id: 'legal', label: 'Control Legal', icon: '⚖️' },
   ]
@@ -266,7 +325,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-cream text-coffee-900">
       {/* Header */}
-      <header className="bg-gradient-to-r from-coffee-700 to-coffee-600 text-white shadow-lg sticky top-0 z-40">
+      <header className="bg-gradient-to-r from-coffee-700 to-coffee-600 text-white shadow-lg">
         <div className="max-w-7xl mx-auto px-4 md:px-6 py-4">
           <div className="flex items-center justify-between flex-wrap gap-3">
             <div className="flex items-center gap-3">
@@ -375,10 +434,11 @@ export default function App() {
               </Card>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <KPI label="Patrimonio" value={formatCLP(patrimonio)} sub={`Activos ${formatCLP(totalActivos)} - Pasivos ${formatCLP(totalPasivos)}`} tone={patrimonio >= 0 ? 'positive' : 'negative'} />
-              <KPI label="Cumplimiento Legal" value={formatPct(cumplimientoLegal)} sub={`${legalItems.filter(l => l.vigente).length} de ${legalItems.length} ítems vigentes`} tone={cumplimientoLegal >= 80 ? 'positive' : cumplimientoLegal >= 60 ? 'accent' : 'negative'} />
-              <KPI label="Margen de Contribución" value={formatPct(margenContribucionPct * 100)} sub="Sobre ingresos totales" tone="accent" />
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <KPI label="Patrimonio" value={formatCLP(patrimonio)} sub={`A ${formatCLP(totalActivos)} / P ${formatCLP(totalPasivos)}`} tone={patrimonio >= 0 ? 'positive' : 'negative'} />
+              <KPI label="Cumplimiento Legal" value={formatPct(cumplimientoLegal)} sub={`${legalItems.filter(l => l.vigente).length} de ${legalItems.length} vigentes`} tone={cumplimientoLegal >= 80 ? 'positive' : cumplimientoLegal >= 60 ? 'accent' : 'negative'} />
+              <KPI label="Margen Contribución" value={formatPct(margenContribucionPct * 100)} sub="Sobre ingresos" tone="accent" />
+              <KPI label="Ratio Compra/Venta" value={formatPct(ratioCompraVenta)} sub={`Benchmark: ${ratioBenchmark}%`} tone={ratioCompraVenta <= ratioBenchmark ? 'positive' : 'negative'} />
             </div>
 
             <Card title="Pilares del Modelo de Gestión" subtitle="Capa financiera · operativa · estratégica · legal">
@@ -832,131 +892,231 @@ export default function App() {
           </div>
         )}
 
-        {/* MARKETING MIX */}
-        {tab === 'marketing' && (
+        {/* ABASTECIMIENTO */}
+        {tab === 'abastecimiento' && (
           <div className="space-y-6">
             <div>
-              <h2 className="text-2xl md:text-3xl font-bold text-coffee-800">Control de Marketing Mix (7P)</h2>
-              <p className="text-coffee-500 text-sm mt-1">Autoevaluación estratégica · Desplaza cada slider para calificar del 0 al 100</p>
+              <h2 className="text-2xl md:text-3xl font-bold text-coffee-800">Gestión de Abastecimiento</h2>
+              <p className="text-coffee-500 text-sm mt-1">Control de compras, proveedores y variación de precios · Medir eficiencia del gasto</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              <Card title="Indicadores (0-100)">
-                {Object.entries(marketingMix).map(([key, value]) => (
-                  <div key={key} className="mb-4">
-                    <div className="flex justify-between items-center mb-1">
-                      <label className="text-sm font-medium text-coffee-700">{key}</label>
-                      <span className="text-sm font-bold text-coffee-800">{value}</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="0" max="100"
-                      value={value}
-                      onChange={(e) => setMarketingMix({ ...marketingMix, [key]: Number(e.target.value) })}
-                      className="w-full accent-coffee-600"
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+              <KPI label="Total Compras" value={formatCLP(totalCompras)} sub={`${compras.length} registros`} tone="default" />
+              <KPI label="Ratio Compra/Venta" value={formatPct(ratioCompraVenta)} sub={`Benchmark: ${ratioBenchmark}%`} tone={ratioCompraVenta <= ratioBenchmark ? 'positive' : 'negative'} />
+              <KPI label="Variación Promedio Precios" value={formatPct(variacionPromedio)} sub="Entre 1ª y última compra" tone={variacionPromedio > 5 ? 'negative' : variacionPromedio < 0 ? 'positive' : 'accent'} />
+              <KPI label="Proveedores Activos" value={proveedoresUnicos.length} sub={`${insumosUnicos.length} insumos distintos`} tone="default" />
+            </div>
+
+            <Card title="Benchmark Ratio Compra/Venta">
+              <div className="flex items-center gap-3 flex-wrap">
+                <label className="text-sm text-coffee-700">Meta máxima (% de ingresos):</label>
+                <input
+                  type="number"
+                  value={ratioBenchmark}
+                  onChange={(e) => setRatioBenchmark(Number(e.target.value))}
+                  className="w-24 px-3 py-2 border border-coffee-300 rounded-lg text-right"
+                />
+                <span className="text-coffee-600">%</span>
+                <div className="flex-1 min-w-[200px]">
+                  <div className="w-full bg-coffee-100 rounded-full h-3 overflow-hidden">
+                    <div
+                      className={`h-full ${ratioCompraVenta <= ratioBenchmark ? 'bg-emerald-500' : 'bg-rose-500'} transition-all`}
+                      style={{ width: `${Math.min(ratioCompraVenta, 100)}%` }}
                     />
                   </div>
-                ))}
-                <div className="text-xs text-coffee-600 mt-2 p-3 bg-coffee-50 rounded">
-                  <strong>7P:</strong> Producto · Precio · Plaza · Promoción · Personas · Procesos · Presencia (evidencia física). Extensión del clásico 4P de Marketing adaptada a servicios.
+                  <div className="text-xs text-coffee-600 mt-1">Actual: {formatPct(ratioCompraVenta)} · Objetivo: {'<='}{ratioBenchmark}%</div>
                 </div>
+              </div>
+              <div className="text-xs text-coffee-600 mt-3 bg-coffee-50 p-3 rounded-lg">
+                Si este ratio sube sin que suban las ventas, hay problema de merma, sobrestock o alza de insumos. En una cafetería de especialidad típica, los insumos representan 25-35% del ingreso.
+              </div>
+            </Card>
+
+            <Card title="Registro de Compras" subtitle="Fecha · N° Documento · Proveedor · Insumo · Cantidad · Precio Unitario">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-coffee-100 text-coffee-800">
+                      <th className="text-left p-2 font-semibold">Fecha</th>
+                      <th className="text-left p-2 font-semibold">Tipo</th>
+                      <th className="text-left p-2 font-semibold">N° Doc</th>
+                      <th className="text-left p-2 font-semibold">Proveedor</th>
+                      <th className="text-left p-2 font-semibold">Insumo</th>
+                      <th className="text-right p-2 font-semibold">Cant.</th>
+                      <th className="text-left p-2 font-semibold">Ud</th>
+                      <th className="text-right p-2 font-semibold">P. Unit.</th>
+                      <th className="text-right p-2 font-semibold hidden md:table-cell">Total</th>
+                      <th className="p-2"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {compras.map(c => (
+                      <tr key={c.id} className="border-b border-coffee-100">
+                        <td className="p-1"><input type="date" value={c.fecha} onChange={(e) => updateItem(setCompras, compras, c.id, 'fecha', e.target.value)} className="w-36 px-2 py-1.5 border border-coffee-200 rounded text-sm" /></td>
+                        <td className="p-1"><select value={c.tipoDoc || 'Factura'} onChange={(e) => updateItem(setCompras, compras, c.id, 'tipoDoc', e.target.value)} className="w-24 px-2 py-1.5 border border-coffee-200 rounded text-sm bg-white"><option value="Factura">Factura</option><option value="Boleta">Boleta</option><option value="Guía">Guía</option></select></td>
+                        <td className="p-1"><input value={c.nDoc || ''} onChange={(e) => updateItem(setCompras, compras, c.id, 'nDoc', e.target.value)} placeholder="N°" className="w-24 px-2 py-1.5 border border-coffee-200 rounded text-sm" /></td>
+                        <td className="p-1"><input value={c.proveedor} onChange={(e) => updateItem(setCompras, compras, c.id, 'proveedor', e.target.value)} className="w-full min-w-[140px] px-2 py-1.5 border border-coffee-200 rounded text-sm" /></td>
+                        <td className="p-1"><input value={c.insumo} onChange={(e) => updateItem(setCompras, compras, c.id, 'insumo', e.target.value)} className="w-full min-w-[130px] px-2 py-1.5 border border-coffee-200 rounded text-sm" /></td>
+                        <td className="p-1"><input type="number" value={c.cantidad} onChange={(e) => updateItem(setCompras, compras, c.id, 'cantidad', Number(e.target.value))} className="w-20 px-2 py-1.5 border border-coffee-200 rounded text-right text-sm" /></td>
+                        <td className="p-1"><input value={c.unidad} onChange={(e) => updateItem(setCompras, compras, c.id, 'unidad', e.target.value)} className="w-16 px-2 py-1.5 border border-coffee-200 rounded text-sm" /></td>
+                        <td className="p-1"><input type="number" value={c.precioUnitario} onChange={(e) => updateItem(setCompras, compras, c.id, 'precioUnitario', Number(e.target.value))} className="w-24 px-2 py-1.5 border border-coffee-200 rounded text-right text-sm" /></td>
+                        <td className="p-1 text-right hidden md:table-cell text-coffee-700 font-medium">{formatCLP(Number(c.cantidad || 0) * Number(c.precioUnitario || 0))}</td>
+                        <td className="p-1"><button onClick={() => removeItem(setCompras, compras, c.id)} className="text-coffee-400 hover:text-rose-500 px-2">✕</button></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="mt-3">
+                <AddButton onClick={() => addItem(setCompras, compras, { fecha: new Date().toISOString().slice(0,10), tipoDoc: 'Factura', nDoc: '', proveedor: '', insumo: '', cantidad: 0, unidad: 'kg', precioUnitario: 0 })} label="Agregar compra" />
+              </div>
+            </Card>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <Card title="Variación de Precios por Insumo" subtitle="Comparación entre primera y última compra">
+                {variacionInsumos.length > 0 ? (
+                  <div className="space-y-2">
+                    {variacionInsumos.map(v => (
+                      <div key={v.insumo} className="flex items-center justify-between bg-coffee-50 p-3 rounded-lg">
+                        <div>
+                          <div className="font-medium text-coffee-800 text-sm">{v.insumo}</div>
+                          <div className="text-xs text-coffee-500">{formatCLP(v.precioInicial)} → {formatCLP(v.precioActual)}</div>
+                        </div>
+                        <div className={`font-bold text-sm ${v.variacionPct > 5 ? 'text-rose-600' : v.variacionPct < 0 ? 'text-emerald-600' : 'text-coffee-700'}`}>
+                          {v.variacionPct >= 0 ? '+' : ''}{formatPct(v.variacionPct)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-coffee-500 text-sm text-center py-8">Registra al menos 2 compras del mismo insumo para ver la variación.</div>
+                )}
               </Card>
 
-              <Card title="Radar Marketing Mix">
-                <div style={{ width: '100%', height: 340 }}>
+              <Card title="Gasto por Proveedor">
+                <div className="h-72">
                   <ResponsiveContainer>
-                    <RadarChart data={Object.entries(marketingMix).map(([name, value]) => ({ name, value }))}>
-                      <PolarGrid stroke="#C9B08C" />
-                      <PolarAngleAxis dataKey="name" stroke="#6F4E37" fontSize={11} />
-                      <PolarRadiusAxis domain={[0, 100]} stroke="#A98B6C" fontSize={10} />
-                      <Radar name="Desempeño" dataKey="value" stroke="#6F4E37" fill="#6F4E37" fillOpacity={0.45} />
-                      <Tooltip />
-                    </RadarChart>
+                    <PieChart>
+                      <Pie data={gastoPorProveedor} dataKey="total" nameKey="proveedor" outerRadius={90} label={(e) => e.proveedor}>
+                        {gastoPorProveedor.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                      </Pie>
+                      <Tooltip formatter={(v) => formatCLP(v)} />
+                    </PieChart>
                   </ResponsiveContainer>
                 </div>
               </Card>
             </div>
 
-            <Card title="Interpretación por Variable">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                {Object.entries(marketingMix).map(([key, value]) => {
-                  const tone = value >= 75 ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : value >= 50 ? 'bg-amber-50 border-amber-200 text-amber-900' : 'bg-rose-50 border-rose-200 text-rose-900'
-                  const diag = value >= 75 ? 'Fortaleza — mantener y apalancar' : value >= 50 ? 'Zona media — oportunidad de mejora' : 'Debilidad crítica — plan de acción inmediato'
-                  return (
-                    <div key={key} className={`p-3 border rounded-lg ${tone}`}>
-                      <div className="flex justify-between font-semibold"><span>{key}</span><span>{value}</span></div>
-                      <div className="text-xs mt-1">{diag}</div>
-                    </div>
-                  )
-                })}
-              </div>
-            </Card>
-          </div>
-        )}
-
-        {/* CONTROL LEGAL */}
-        {tab === 'legal' && (
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-2xl md:text-3xl font-bold text-coffee-800">Control Legal y Cumplimiento Normativo</h2>
-              <p className="text-coffee-500 text-sm mt-1">Indicadores de compliance · Permisos, certificaciones y obligaciones</p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <KPI label="Cumplimiento Global" value={formatPct(cumplimientoLegal)} sub={`${legalItems.filter(l => l.vigente).length} de ${legalItems.length} en regla`} tone={cumplimientoLegal >= 80 ? 'positive' : cumplimientoLegal >= 60 ? 'accent' : 'negative'} />
-              <KPI label="Ítems Vigentes" value={legalItems.filter(l => l.vigente).length} tone="positive" />
-              <KPI label="Ítems Pendientes" value={legalItems.filter(l => !l.vigente).length} tone={legalItems.filter(l => !l.vigente).length === 0 ? 'positive' : 'negative'} />
-            </div>
-
-            <Card title="Checklist Legal">
-              <div className="space-y-2">
-                {legalItems.map(item => (
-                  <div key={item.id} className={`grid grid-cols-12 gap-2 items-center p-3 rounded-lg border ${item.vigente ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'}`}>
-                    <div className="col-span-12 md:col-span-1 flex items-center">
-                      <input
-                        type="checkbox"
-                        checked={item.vigente}
-                        onChange={(e) => updateItem(setLegalItems, legalItems, item.id, 'vigente', e.target.checked)}
-                        className="w-5 h-5 accent-coffee-600 cursor-pointer"
-                      />
-                    </div>
-                    <div className="col-span-12 md:col-span-7">
-                      <input
-                        value={item.item}
-                        onChange={(e) => updateItem(setLegalItems, legalItems, item.id, 'item', e.target.value)}
-                        className="w-full px-2 py-1.5 bg-white border border-coffee-200 rounded text-sm"
-                      />
-                    </div>
-                    <div className="col-span-10 md:col-span-3">
-                      <input
-                        value={item.vence}
-                        onChange={(e) => updateItem(setLegalItems, legalItems, item.id, 'vence', e.target.value)}
-                        placeholder="Vence / estado"
-                        className="w-full px-2 py-1.5 bg-white border border-coffee-200 rounded text-sm"
-                      />
-                    </div>
-                    <div className="col-span-2 md:col-span-1 flex justify-end">
-                      <button onClick={() => removeItem(setLegalItems, legalItems, item.id)} className="text-rose-500 hover:bg-rose-100 p-2 rounded">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"/></svg>
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <AddButton onClick={() => addItem(setLegalItems, legalItems, { item: 'Nuevo requisito', vigente: false, vence: '' })} label="Agregar requisito legal" />
-            </Card>
-
-            <Card title="Progreso de Cumplimiento">
-              <div className="w-full bg-coffee-100 rounded-full h-6 overflow-hidden">
-                <div
-                  className={`h-full ${cumplimientoLegal >= 80 ? 'bg-emerald-500' : cumplimientoLegal >= 60 ? 'bg-amber-500' : 'bg-rose-500'} transition-all duration-500 flex items-center justify-end px-3 text-white text-sm font-bold`}
-                  style={{ width: `${cumplimientoLegal}%` }}
-                >
-                  {formatPct(cumplimientoLegal)}
+            <Card title="Rotación de Inventario (Estimado)" subtitle="Veces que se renueva el stock al mes">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-coffee-50 p-4 rounded-xl">
+                  <div className="text-xs text-coffee-500 uppercase tracking-wide">Costo de Ventas Mes</div>
+                  <div className="text-2xl font-bold text-coffee-800 mt-1">{formatCLP(totalCostosVariables)}</div>
+                </div>
+                <div className="bg-coffee-50 p-4 rounded-xl">
+                  <div className="text-xs text-coffee-500 uppercase tracking-wide">Inventario Promedio (compras)</div>
+                  <div className="text-2xl font-bold text-coffee-800 mt-1">{formatCLP(totalCompras)}</div>
+                </div>
+                <div className="bg-amber-50 p-4 rounded-xl">
+                  <div className="text-xs text-amber-700 uppercase tracking-wide">Rotación Estimada</div>
+                  <div className="text-2xl font-bold text-amber-800 mt-1">{totalCompras > 0 ? (totalCostosVariables / totalCompras).toFixed(2) : '0.00'}x</div>
                 </div>
               </div>
               <div className="text-xs text-coffee-600 mt-3 bg-coffee-50 p-3 rounded-lg">
-                <strong>Tip:</strong> En Chile los ítems críticos que más fiscalizan son: Resolución Sanitaria SEREMI, Patente Municipal, Inicio de Actividades SII e Informe Sanitario. Mantén siempre los vencimientos actualizados.
+                Una rotación &gt; 1 indica que se vende todo lo comprado en el mes. Bajo 0.7 sugiere sobre-stock o merma. Una cafetería sana suele rotar entre 1.0x y 1.5x mensual.
+              </div>
+            </Card>
+
+            <Card title="Costo Teórico vs Real" subtitle="Comparación entre lo que la receta dice que debería costar y lo que realmente se gastó">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-coffee-100 text-coffee-800">
+                      <th className="text-left p-2 font-semibold">Concepto</th>
+                      <th className="text-right p-2 font-semibold">Costo Variable Teórico</th>
+                      <th className="text-right p-2 font-semibold">Compras Reales</th>
+                      <th className="text-right p-2 font-semibold">Diferencia</th>
+                      <th className="text-right p-2 font-semibold">Desv. %</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="border-b border-coffee-100">
+                      <td className="p-2 font-medium text-coffee-800">Total Mensual</td>
+                      <td className="p-2 text-right">{formatCLP(totalCostosVariables)}</td>
+                      <td className="p-2 text-right">{formatCLP(totalCompras)}</td>
+                      <td className={`p-2 text-right font-bold ${totalCompras - totalCostosVariables > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                        {totalCompras - totalCostosVariables >= 0 ? '+' : ''}{formatCLP(totalCompras - totalCostosVariables)}
+                      </td>
+                      <td className={`p-2 text-right font-bold ${totalCompras - totalCostosVariables > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                        {totalCostosVariables > 0 ? formatPct(((totalCompras - totalCostosVariables) / totalCostosVariables) * 100) : '0%'}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <div className="text-xs text-coffee-600 mt-3 bg-coffee-50 p-3 rounded-lg">
+                Si lo real supera al teórico en &gt; 5%, hay merma, robo, sobreporcionado o alza no controlada de proveedores. Esta es la métrica clave de control diario.
+              </div>
+            </Card>
+
+            <Card title="Integración Automática con SII (Propuesta Técnica)" subtitle="Importar facturas electrónicas (DTE) directamente desde el SII">
+              <div className="space-y-4 text-sm text-coffee-700">
+                <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl">
+                  <div className="font-semibold text-amber-800 mb-2">¿Por qué automatizar?</div>
+                  <p className="text-amber-900">En Chile toda factura de proveedor pasa por el SII como DTE (Documento Tributario Electrónico). Conectar este registro al SII elimina la digitación manual y entrega datos en tiempo real para tomar decisiones.</p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-coffee-50 p-4 rounded-xl">
+                    <div className="font-semibold text-coffee-800 mb-2">Stack propuesto</div>
+                    <ul className="list-disc list-inside space-y-1 text-coffee-700">
+                      <li>Python + <code className="bg-white px-1 rounded">requests</code> para SII WS</li>
+                      <li>Parsing de XML DTE con <code className="bg-white px-1 rounded">lxml</code></li>
+                      <li>Webhook diario → Supabase / Firestore</li>
+                      <li>API REST consumida por este dashboard</li>
+                    </ul>
+                  </div>
+                  <div className="bg-coffee-50 p-4 rounded-xl">
+                    <div className="font-semibold text-coffee-800 mb-2">Flujo</div>
+                    <ol className="list-decimal list-inside space-y-1 text-coffee-700">
+                      <li>Login con Certificado Digital al SII</li>
+                      <li>Descarga RCV (Registro Compra-Venta)</li>
+                      <li>Parser extrae proveedor, insumo, monto, IVA</li>
+                      <li>Match contra catálogo de insumos</li>
+                      <li>Inserta automáticamente en Compras</li>
+                    </ol>
+                  </div>
+                </div>
+
+                <div className="bg-coffee-900 text-coffee-50 p-4 rounded-xl font-mono text-xs overflow-x-auto">
+                  <div className="text-coffee-300 mb-2"># Pseudocódigo del conector</div>
+                  <pre>{`from sii_chile import SiiClient
+from datetime import date
+
+sii = SiiClient(rut, clave_sii, cert_path)
+rcv = sii.get_rcv(periodo=date.today().strftime("%Y%m"))
+
+for factura in rcv.compras:
+    insumo = match_insumo(factura.detalle)
+    api.post("/compras", {
+        "fecha": factura.fecha,
+        "proveedor": factura.razon_social,
+        "insumo": insumo.nombre,
+        "cantidad": factura.cantidad,
+        "unidad": insumo.unidad,
+        "precioUnitario": factura.neto / factura.cantidad
+    })`}</pre>
+                </div>
+
+                <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-xl">
+                  <div className="font-semibold text-emerald-800 mb-1">Beneficios para la cafetería</div>
+                  <ul className="list-disc list-inside text-emerald-900 space-y-1">
+                    <li>0 minutos de digitación: el barista no carga datos</li>
+                    <li>Conciliación automática IVA crédito fiscal</li>
+                    <li>Alertas de alza de precios en tiempo real</li>
+                    <li>Datos limpios y trazables para auditoría tributaria</li>
+                  </ul>
+                </div>
               </div>
             </Card>
           </div>
@@ -964,9 +1124,11 @@ export default function App() {
 
       </main>
 
-      <footer className="mt-10 py-6 text-center text-xs text-coffee-500 border-t border-coffee-100">
-        <div>Modelo de Gestión Integral · Construido con React + Recharts + Tailwind CSS</div>
-        <div className="mt-1">Datos 100% editables · Propuesta para presentación en cafeterías</div>
+      <footer className="max-w-7xl mx-auto px-4 md:px-6 py-8 mt-8 border-t border-coffee-100">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 text-sm text-coffee-500">
+          <div>Modelo de Gestión · Cafetería · {new Date().getFullYear()}</div>
+          <div>Desarrollado por Cristóbal Morales · Ing. en Negocios Internacionales · Analista de Datos</div>
+        </div>
       </footer>
     </div>
   )
