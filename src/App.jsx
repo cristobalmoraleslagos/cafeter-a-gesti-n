@@ -1122,6 +1122,178 @@ for factura in rcv.compras:
           </div>
         )}
 
+
+        {/* MARKETING MIX */}
+        {tab === 'marketing' && (
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-2xl md:text-3xl font-bold text-coffee-800">Marketing Mix · 7P</h2>
+              <p className="text-coffee-500 text-sm mt-1">Diagnóstico de las 7 dimensiones del marketing operativo · Editable en tiempo real</p>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <Card title="Radar de Desempeño" subtitle="Valores 0-100 por dimensión">
+                <div className="h-80">
+                  <ResponsiveContainer>
+                    <RadarChart data={Object.entries(marketingMix).map(([k, v]) => ({ dimension: k, valor: v }))}>
+                      <PolarGrid stroke="#C9B08C" />
+                      <PolarAngleAxis dataKey="dimension" stroke="#6F4E37" fontSize={12} />
+                      <PolarRadiusAxis angle={90} domain={[0, 100]} stroke="#A98B6C" fontSize={10} />
+                      <Radar name="Desempeño" dataKey="valor" stroke="#6F4E37" fill="#6F4E37" fillOpacity={0.4} />
+                      <Tooltip />
+                    </RadarChart>
+                  </ResponsiveContainer>
+                </div>
+              </Card>
+
+              <Card title="Ajustar Dimensiones" subtitle="Slide para modificar score de cada P">
+                <div className="space-y-4">
+                  {Object.entries(marketingMix).map(([k, v]) => (
+                    <div key={k}>
+                      <div className="flex justify-between mb-1">
+                        <span className="text-sm font-medium text-coffee-700">{k}</span>
+                        <span className={`text-sm font-bold ${v >= 75 ? 'text-emerald-600' : v >= 50 ? 'text-amber-600' : 'text-rose-600'}`}>{v}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        value={v}
+                        onChange={(e) => setMarketingMix({ ...marketingMix, [k]: Number(e.target.value) })}
+                        className="w-full accent-coffee-600"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            </div>
+
+            <Card title="Interpretación de las 7P" subtitle="Qué significa cada dimensión en una cafetería">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                {[
+                  { p: 'Producto', d: 'Calidad del café, variedad de menú, consistencia de la receta' },
+                  { p: 'Precio', d: 'Posicionamiento de precios vs competencia, margen percibido por el cliente' },
+                  { p: 'Plaza', d: 'Ubicación, flujo peatonal, accesibilidad, delivery propio o vía apps' },
+                  { p: 'Promoción', d: 'Redes sociales, campañas, programa de fidelización, alianzas locales' },
+                  { p: 'Personas', d: 'Capacitación de baristas, atención al cliente, cultura del equipo' },
+                  { p: 'Procesos', d: 'Tiempos de espera, eficiencia en barra, orden y limpieza operativa' },
+                  { p: 'Presencia', d: 'Diseño del local, ambiente, branding visual, experiencia sensorial' },
+                ].map(x => (
+                  <div key={x.p} className="bg-coffee-50 p-3 rounded-lg">
+                    <div className="font-semibold text-coffee-800">{x.p}</div>
+                    <div className="text-coffee-600 text-xs mt-1">{x.d}</div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+
+            <Card title="Acciones Sugeridas según Score">
+              <div className="space-y-2 text-sm">
+                {Object.entries(marketingMix)
+                  .filter(([_, v]) => v < 70)
+                  .map(([k, v]) => (
+                    <div key={k} className="flex items-start gap-3 bg-amber-50 border border-amber-200 p-3 rounded-lg">
+                      <span className="text-amber-700 font-bold mt-0.5">⚠</span>
+                      <div>
+                        <div className="font-semibold text-amber-900">{k} · {v}/100</div>
+                        <div className="text-amber-800 text-xs">Dimensión bajo el umbral de 70. Priorizar mejora en este pilar para fortalecer la propuesta de valor.</div>
+                      </div>
+                    </div>
+                  ))}
+                {Object.entries(marketingMix).filter(([_, v]) => v < 70).length === 0 && (
+                  <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-lg text-emerald-800 text-sm">
+                    ✓ Todas las dimensiones están sobre 70. Modelo de marketing equilibrado.
+                  </div>
+                )}
+              </div>
+            </Card>
+          </div>
+        )}
+
+        {/* CONTROL LEGAL */}
+        {tab === 'legal' && (
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-2xl md:text-3xl font-bold text-coffee-800">Control Legal y Cumplimiento Normativo</h2>
+              <p className="text-coffee-500 text-sm mt-1">Registro editable de obligaciones · Seguimiento de vigencia · Indicador de compliance global</p>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+              <KPI label="Cumplimiento Global" value={formatPct(cumplimientoLegal)} sub={`${legalItems.filter(l => l.vigente).length} de ${legalItems.length} vigentes`} tone={cumplimientoLegal >= 80 ? 'positive' : cumplimientoLegal >= 60 ? 'accent' : 'negative'} />
+              <KPI label="Items Vigentes" value={legalItems.filter(l => l.vigente).length} sub="Sin observaciones" tone="positive" />
+              <KPI label="Items Pendientes" value={legalItems.filter(l => !l.vigente).length} sub="Requieren acción" tone="negative" />
+              <KPI label="Total Registrado" value={legalItems.length} sub="Obligaciones en seguimiento" tone="default" />
+            </div>
+
+            <Card title="Estado de Cumplimiento" subtitle="Visualización rápida del compliance global">
+              <div className="w-full bg-coffee-100 rounded-full h-4 overflow-hidden">
+                <div
+                  className={`h-full transition-all ${cumplimientoLegal >= 80 ? 'bg-emerald-500' : cumplimientoLegal >= 60 ? 'bg-amber-500' : 'bg-rose-500'}`}
+                  style={{ width: `${cumplimientoLegal}%` }}
+                />
+              </div>
+              <div className="flex justify-between text-xs text-coffee-600 mt-2">
+                <span>0%</span>
+                <span className="font-semibold">{formatPct(cumplimientoLegal)} cumplimiento</span>
+                <span>100%</span>
+              </div>
+            </Card>
+
+            <Card title="Registro de Obligaciones Legales" subtitle="Marcar como vigente · Editar fechas de vencimiento">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-coffee-100 text-coffee-800">
+                      <th className="text-left p-2 font-semibold">Obligación / Item</th>
+                      <th className="text-center p-2 font-semibold">Vigente</th>
+                      <th className="text-left p-2 font-semibold">Vencimiento</th>
+                      <th className="p-2"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {legalItems.map(l => (
+                      <tr key={l.id} className="border-b border-coffee-100">
+                        <td className="p-1"><input value={l.item} onChange={(e) => updateItem(setLegalItems, legalItems, l.id, 'item', e.target.value)} className="w-full min-w-[200px] px-2 py-1.5 border border-coffee-200 rounded text-sm" /></td>
+                        <td className="p-1 text-center">
+                          <input
+                            type="checkbox"
+                            checked={l.vigente}
+                            onChange={(e) => updateItem(setLegalItems, legalItems, l.id, 'vigente', e.target.checked)}
+                            className="w-5 h-5 accent-emerald-600 cursor-pointer"
+                          />
+                        </td>
+                        <td className="p-1"><input value={l.vence} onChange={(e) => updateItem(setLegalItems, legalItems, l.id, 'vence', e.target.value)} className="w-full min-w-[120px] px-2 py-1.5 border border-coffee-200 rounded text-sm" /></td>
+                        <td className="p-1"><button onClick={() => removeItem(setLegalItems, legalItems, l.id)} className="text-coffee-400 hover:text-rose-500 px-2">✕</button></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="mt-3">
+                <AddButton onClick={() => addItem(setLegalItems, legalItems, { item: '', vigente: false, vence: '' })} label="Agregar obligación legal" />
+              </div>
+            </Card>
+
+            <Card title="Marco Normativo Aplicable a Cafeterías en Chile" subtitle="Referencia rápida de organismos y regulaciones">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                {[
+                  { org: 'SII', d: 'Inicio de actividades, facturación electrónica, declaración de IVA mensual y renta anual' },
+                  { org: 'SEREMI de Salud', d: 'Resolución sanitaria, certificación de manipulación de alimentos, fiscalizaciones' },
+                  { org: 'Municipalidad', d: 'Patente comercial, permiso de funcionamiento, ordenanzas locales' },
+                  { org: 'Dirección del Trabajo', d: 'Contratos, jornada legal, cotizaciones previsionales, libro de remuneraciones' },
+                  { org: 'INAPI', d: 'Registro de marca comercial, protección de nombre y logo' },
+                  { org: 'Mutual / SUSESO', d: 'Seguro de accidentes laborales, plan preventivo de riesgos' },
+                ].map(x => (
+                  <div key={x.org} className="bg-coffee-50 p-3 rounded-lg">
+                    <div className="font-semibold text-coffee-800">{x.org}</div>
+                    <div className="text-coffee-600 text-xs mt-1">{x.d}</div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </div>
+        )}
+
       </main>
 
       <footer className="max-w-7xl mx-auto px-4 md:px-6 py-8 mt-8 border-t border-coffee-100">
